@@ -8,7 +8,7 @@ The build uses a 20 GiB RAM filesystem and a persistent package cache,
 and produces `custom-debian-live-trixie.iso` in the current directory.
 
 
-# some tricks 
+# Useful commands
 
 For example: check firmware files inside the ISO (`bsdtar` requires `libarchive-tools`):
 
