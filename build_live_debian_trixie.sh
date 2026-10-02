@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURATION ---
 DISTRO="trixie"
 IMAGE_NAME="custom-debian-live-${DISTRO}.iso"
 EXTRA_PACKAGES="
@@ -17,7 +17,7 @@ EXTRA_PACKAGES="
 "
 SIZE="20G"
 
-# --- IMPOSTAZIONE AMBIENTE DI BUILD ---
+# --- BUILD ENVIRONMENT SETUP ---
 export BUILD_DIR="$(pwd)/ramdisk"
 export CACHE_DIR="$(pwd)/cache"
 export CACHE_BIND_DIR="${BUILD_DIR}/cache"
@@ -27,24 +27,24 @@ mkdir -p "$BUILD_DIR"
 mkdir -p "$CACHE_DIR"
 
 if mountpoint -q "$BUILD_DIR"; then
-    echo "$BUILD_DIR è già montato."
+    echo "$BUILD_DIR is already mounted."
 else
-    echo "Monto tmpfs in $BUILD_DIR..."
+    echo "Mounting tmpfs at $BUILD_DIR..."
     sudo mount -t tmpfs -o size=$SIZE tmpfs "$BUILD_DIR"
 fi
 
 mkdir -p "$CACHE_BIND_DIR"
 
 if mountpoint -q "$CACHE_BIND_DIR"; then
-    echo "$CACHE_BIND_DIR è già montato."
+    echo "$CACHE_BIND_DIR is already mounted."
 else
-    echo "Monto la cache persistente in $BUILD_DIR/cache..."
+    echo "Mounting the persistent cache at $BUILD_DIR/cache..."
     sudo mount --bind "$CACHE_DIR" "$CACHE_BIND_DIR"
 fi
 
 cd "$BUILD_DIR"
 
-# --- ESECUZIONE LIVE-BUILD ---
+# --- RUN LIVE-BUILD ---
 lb clean
 
 lb config noauto \
@@ -60,22 +60,22 @@ lb config noauto \
   --updates true \
   --uefi-secure-boot auto
 
-# --- LISTE PACCHETTI ---
+# --- PACKAGE LISTS ---
 mkdir -p config/package-lists
 echo "live-boot systemd-sysv live-config live-config-systemd sudo" > config/package-lists/live.list.chroot
-# Converti la stringa di pacchetti in un formato per il file di lista
+# Convert the package string to the format used by the package list file.
 echo "$EXTRA_PACKAGES" | tr ' ' '\n' > config/package-lists/custom.list.chroot
 
 
-# --- HOOK PER EVITARE ERRORI DPKG (LA PARTE IMPORTANTE!) ---
-# Questa sezione crea uno script che impedisce ai servizi di avviarsi
-# durante la fase di installazione nel chroot, risolvendo l'errore dpkg.
+# --- HOOK TO PREVENT DPKG ERRORS (IMPORTANT!) ---
+# This section creates a script that prevents services from starting
+# during installation in the chroot, resolving the dpkg error.
 mkdir -p config/hooks/chroot
 cat > config/hooks/chroot/disable-services.hook.chroot << 'EOF'
 #!/bin/sh
 set -e
 
-# Crea una policy che impedisce l'avvio dei daemon
+# Create a policy that prevents daemons from starting.
 cat << 'POLICY' > /usr/sbin/policy-rc.d
 #!/bin/sh
 echo "All runlevel changes denied by policy"
@@ -86,28 +86,28 @@ chmod +x /usr/sbin/policy-rc.d
 EOF
 
 
-# Avvia la build
+# Start the build.
 lb build
 
 
-# --- FINALIZZAZIONE ---
-# Rimuovi lo script della policy alla fine della build, prima di creare l'ISO
-# Questo è importante affinché i servizi possano avviarsi normalmente
-# quando si avvia il sistema live.
+# --- FINALIZATION ---
+# Remove the policy script after the build, before creating the ISO.
+# This is important so services can start normally
+# when the live system boots.
 rm -f chroot/usr/sbin/policy-rc.d
 
-# Sposta e rinomina l'ISO
+# Move and rename the ISO.
 if [ -f live-image-amd64.hybrid.iso ]; then
   mv -f live-image-amd64.hybrid.iso "${OUTPUT_DIR}/${IMAGE_NAME}"
   sudo chmod 777 "${OUTPUT_DIR}/${IMAGE_NAME}"
-  echo "✅ ISO pronta: ${OUTPUT_DIR}/${IMAGE_NAME}"
+  echo "✅ ISO ready: ${OUTPUT_DIR}/${IMAGE_NAME}"
 else
-  echo "❌ Errore: ISO non trovata!"
+  echo "❌ Error: ISO not found!"
   exit 1
 fi
 
 cd "$OUTPUT_DIR"
-echo "Smontaggio dei filesystem..."
+echo "Unmounting filesystems..."
 sudo umount "$CACHE_BIND_DIR"
 sudo umount "$BUILD_DIR"
-echo "Pulizia completata."
+echo "Cleanup complete."
